@@ -74,7 +74,7 @@ def plot_feature_contributions(Vt, feature_names, file_name, svd_dir):
         ax.set_yticklabels(contributions_sorted.index, fontsize=8)
         ax.set_title(f'Feature Contributions to Singular Vector {i + 1}')
         ax.set_xlabel('Contribution Value')
-        ax.grid(True, alpha=0.3)
+        ax.grid(True)
 
         # Add value labels
         for j, v in enumerate(contributions_sorted):
@@ -159,7 +159,7 @@ def analyze_file(file_path):
     # Generate visualizations
     print("\nGenerating visualizations in SVD directory...")
 
-    # 1. Variance explanation table
+    # 1. Singular values plot
     plot_singular_values(S, file_name, svd_dir)
 
     # 2. Feature contributions plot
@@ -168,19 +168,39 @@ def analyze_file(file_path):
     # 3. Singular matrix heatmap
     plot_singular_matrix_heatmap(S, file_name, svd_dir)
 
-    # Save component compositions
-    component_df = pd.DataFrame(
+    # Save V^T matrix (feature patterns)
+    vt_df = pd.DataFrame(
         Vt.T,
         columns=[f'Singular Vector {i + 1}' for i in range(len(S))],
         index=df.columns
     )
-    component_df.to_csv(os.path.join(svd_dir, f'svd_components_{file_name}.csv'))
+    vt_df.to_csv(os.path.join(svd_dir, f'svd_components_V_{file_name}.csv'))
+
+    # Save U matrix (sample patterns)
+    u_df = pd.DataFrame(
+        U,
+        columns=[f'Component {i + 1}' for i in range(U.shape[1])]
+    )
+    # Add index to track original sample numbers
+    u_df.index.name = 'Sample_ID'
+    u_df.to_csv(os.path.join(svd_dir, f'svd_components_U_{file_name}.csv'))
+
+    # Save S values (singular values)
+    s_df = pd.DataFrame({
+        'Singular_Value': S,
+        'Variance_Explained': variance_explained,
+        'Cumulative_Variance': cumulative_variance
+    })
+    s_df.index = [f'Component_{i + 1}' for i in range(len(S))]
+    s_df.to_csv(os.path.join(svd_dir, f'svd_values_S_{file_name}.csv'))
 
     print("\nAnalysis complete! Generated files in SVD directory:")
     print(f"1. singular_values_{file_name}.png - Singular values distribution")
     print(f"2. feature_contributions_{file_name}.png - Feature contributions")
     print(f"3. singular_matrix_{file_name}.png - Singular value matrix")
-    print(f"4. svd_components_{file_name}.csv - Component compositions")
+    print(f"4. svd_components_V_{file_name}.csv - V^T matrix (feature patterns)")
+    print(f"5. svd_components_U_{file_name}.csv - U matrix (sample patterns)")
+    print(f"6. svd_values_S_{file_name}.csv - S values and variance explained")
 
 
 if __name__ == "__main__":
