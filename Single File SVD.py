@@ -6,7 +6,17 @@ from sklearn.preprocessing import StandardScaler
 import os
 
 
-def plot_singular_values(S, file_name):
+def ensure_svd_directory():
+    """
+    Create SVD directory if it doesn't exist
+    """
+    svd_dir = "SVD"
+    if not os.path.exists(svd_dir):
+        os.makedirs(svd_dir)
+    return svd_dir
+
+
+def plot_singular_values(S, file_name, svd_dir):
     """
     Plot singular values and their cumulative explained variance
     """
@@ -30,84 +40,65 @@ def plot_singular_values(S, file_name):
     plt.grid(True)
 
     plt.tight_layout()
-    plt.savefig(f'singular_values_{file_name}.png')
+    plt.savefig(os.path.join(svd_dir, f'singular_values_{file_name}.png'), bbox_inches='tight', dpi=300)
     plt.close()
 
 
-def plot_feature_contributions(Vt, feature_names, file_name):
+def plot_feature_contributions(Vt, feature_names, file_name, svd_dir):
     """
     Plot feature contributions for all singular vectors
     """
     n_vectors = Vt.shape[0]
-
-    # Calculate how many subplots we need (arrange in multiple columns if too many)
-    n_cols = min(3, n_vectors)
+    n_cols = 3
     n_rows = (n_vectors + n_cols - 1) // n_cols
 
-    plt.figure(figsize=(15, 5 * n_rows))
+    fig = plt.figure(figsize=(20, 6 * n_rows))
 
     for i in range(n_vectors):
-        plt.subplot(n_rows, n_cols, i + 1)
+        ax = plt.subplot(n_rows, n_cols, i + 1)
+
+        # Create contributions series
         contributions = pd.Series(Vt[i], index=feature_names)
-        contributions.sort_values(ascending=True).plot(kind='barh')
-        plt.title(f'Feature Contributions to Singular Vector {i + 1}')
-        plt.xlabel('Contribution Magnitude')
-        plt.grid(True)
+        sorted_idx = contributions.abs().sort_values(ascending=True).index
+        contributions_sorted = contributions[sorted_idx]
+
+        # Create horizontal bar plot with colors
+        colors = ['red' if x < 0 else 'blue' for x in contributions_sorted.values]
+        bars = ax.barh(range(len(contributions_sorted)),
+                       contributions_sorted.values,
+                       color=colors,
+                       alpha=0.6)
+
+        # Customize plot
+        ax.set_yticks(range(len(contributions_sorted)))
+        ax.set_yticklabels(contributions_sorted.index, fontsize=8)
+        ax.set_title(f'Feature Contributions to Singular Vector {i + 1}')
+        ax.set_xlabel('Contribution Value')
+        ax.grid(True, alpha=0.3)
+
+        # Add value labels
+        for j, v in enumerate(contributions_sorted):
+            label_pos = v + (0.01 if v >= 0 else -0.01)
+            ax.text(label_pos, j, f'{v:.3f}',
+                    va='center',
+                    ha='left' if v >= 0 else 'right',
+                    fontsize=8)
+
+        # Adjust limits to prevent cutting
+        xmin, xmax = ax.get_xlim()
+        margin = (xmax - xmin) * 0.15
+        ax.set_xlim(xmin - margin, xmax + margin)
 
     plt.tight_layout()
-    plt.savefig(f'feature_contributions_{file_name}.png')
+    plt.savefig(os.path.join(svd_dir, f'feature_contributions_{file_name}.png'),
+                bbox_inches='tight',
+                dpi=300,
+                facecolor='white',
+                edgecolor='none')
     plt.close()
 
 
-def plot_variance_table(S, file_name):
-    """
-    Create and save variance explanation table
-    """
-    squared_values = S ** 2
-    total_variance = squared_values.sum()
-    explained_variance = squared_values / total_variance * 100
-    cumulative_variance = np.cumsum(explained_variance)
-
-    # Create table data
-    data = {
-        'Singular Value': S,
-        'Squared Value': squared_values,
-        'Variance Explained (%)': explained_variance,
-        'Cumulative Variance (%)': cumulative_variance
-    }
-
-    # Create a figure and axis
-    fig, ax = plt.figure(figsize=(12, 8)), plt.gca()
-    ax.axis('tight')
-    ax.axis('off')
-
-    # Create table
-    table = ax.table(
-        cellText=[[f"{row[0]:.2f}", f"{row[1]:.2f}", f"{row[2]:.2f}%", f"{row[3]:.2f}%"]
-                  for row in zip(data['Singular Value'],
-                                 data['Squared Value'],
-                                 data['Variance Explained (%)'],
-                                 data['Cumulative Variance (%)'])],
-        colLabels=['σᵢ', 'σᵢ²', 'Variance Explained (%)', 'Cumulative Variance (%)'],
-        rowLabels=[f"Vector {i + 1}" for i in range(len(S))],
-        loc='center'
-    )
-
-    # Modify table appearance
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1.2, 1.5)
-
-    # Add title with formula
-    plt.title('Variance Explanation Table\nFormula: Variance Explained (%) = (σᵢ² / Σσᵢ²) × 100%',
-              pad=20, fontsize=12)
-
-    plt.tight_layout()
-    plt.savefig(f'variance_table_{file_name}.png', bbox_inches='tight', dpi=300)
-    plt.close()
-
-
-def plot_singular_matrix_heatmap(S, file_name):
+def plot_singular_matrix_heatmap(S, file_name, svd_dir):
     """
     Plot heatmap of the complete singular value matrix (Σ)
     """
@@ -125,14 +116,20 @@ def plot_singular_matrix_heatmap(S, file_name):
     plt.yticks(np.arange(n_components) + 0.5, labels, rotation=0)
 
     plt.tight_layout()
-    plt.savefig(f'singular_matrix_{file_name}.png')
+    plt.savefig(os.path.join(svd_dir, f'singular_matrix_{file_name}.png'),
+                bbox_inches='tight',
+                dpi=300,
+                facecolor='white')
     plt.close()
 
 
 def analyze_file(file_path):
     """
-    Load CSV file and perform SVD analysis with visualizations for all components
+    Load CSV file and perform SVD analysis with visualizations
     """
+    # Create SVD directory
+    svd_dir = ensure_svd_directory()
+
     # Get file name without extension for titles
     file_name = os.path.splitext(os.path.basename(file_path))[0]
 
@@ -151,46 +148,41 @@ def analyze_file(file_path):
     print("\nPerforming SVD analysis...")
     U, S, Vt = np.linalg.svd(data_scaled, full_matrices=False)
 
-    # Print explained variance information
-    explained_variance_ratio = (S ** 2) / (S ** 2).sum()
-    cumulative_variance = np.cumsum(explained_variance_ratio)
-    print(f"\nNumber of singular values: {len(S)}")
-    print("\nExplained variance by component:")
-    for i, (var, cum_var) in enumerate(zip(explained_variance_ratio, cumulative_variance), 1):
-        print(f"Component {i}: {var:.4f} ({cum_var:.4f} cumulative)")
+    # Calculate variance explained
+    variance_explained = (S ** 2) / (S ** 2).sum() * 100
+    cumulative_variance = np.cumsum(variance_explained)
+
+    print("\nVariance explained by each component:")
+    for i, (var, cum_var) in enumerate(zip(variance_explained, cumulative_variance), 1):
+        print(f"Vector {i}: {var:.2f}% ({cum_var:.2f}% cumulative)")
 
     # Generate visualizations
-    print("\nGenerating visualizations...")
+    print("\nGenerating visualizations in SVD directory...")
 
     # 1. Variance explanation table
-    plot_variance_table(S, file_name)
+    plot_singular_values(S, file_name, svd_dir)
 
-    # 2. Singular values plot
-    plot_singular_values(S, file_name)
+    # 2. Feature contributions plot
+    plot_feature_contributions(Vt, df.columns, file_name, svd_dir)
 
-    # 2. Feature contributions plot (all vectors)
-    plot_feature_contributions(Vt, df.columns, file_name)
+    # 3. Singular matrix heatmap
+    plot_singular_matrix_heatmap(S, file_name, svd_dir)
 
-    # 3. Complete singular matrix heatmap
-    plot_singular_matrix_heatmap(S, file_name)
-
-    # Save all component compositions
+    # Save component compositions
     component_df = pd.DataFrame(
         Vt.T,
         columns=[f'Singular Vector {i + 1}' for i in range(len(S))],
         index=df.columns
     )
-    component_df.to_csv(f'svd_components_{file_name}.csv')
+    component_df.to_csv(os.path.join(svd_dir, f'svd_components_{file_name}.csv'))
 
-    # Print summary
-    print("\nAnalysis complete! Generated files:")
-    print(f"1. singular_values_{file_name}.png - Complete singular values distribution")
-    print(f"2. feature_contributions_{file_name}.png - All feature contributions")
-    print(f"3. singular_matrix_{file_name}.png - Complete singular value matrix")
-    print(f"4. svd_components_{file_name}.csv - All component compositions")
+    print("\nAnalysis complete! Generated files in SVD directory:")
+    print(f"1. singular_values_{file_name}.png - Singular values distribution")
+    print(f"2. feature_contributions_{file_name}.png - Feature contributions")
+    print(f"3. singular_matrix_{file_name}.png - Singular value matrix")
+    print(f"4. svd_components_{file_name}.csv - Component compositions")
 
 
 if __name__ == "__main__":
-    # File path - replace with your file path
-    file_path = r"C:\Users\Ilya Polonsky\Downloads\CSV_3_Fault_Label_Filtered Anomaly.csv"  # Update with your file path
+    file_path = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\CSV_3_Fault_Label_Filtered Anomaly.csv"  # Update with your file path
     analyze_file(file_path)

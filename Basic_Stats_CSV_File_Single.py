@@ -1,5 +1,5 @@
 # Set your file path here - just change this variable to analyze different files
-FILE_PATH = r"C:\BIU_DS019_Task_000_202502\CSV_DataSet\CSV_0_Fault_Label_Filtered Anomaly.csv"
+FILE_PATH = r'C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\CSV_3_Fault_Label_Filtered Anomaly.csv'
 
 import pandas as pd
 import numpy as np
