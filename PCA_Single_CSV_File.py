@@ -156,5 +156,6 @@ def perform_pca_analysis(file_path):
 
 if __name__ == "__main__":
     # Specify your CSV file path here
-    file_path = r"C:\Users\Ilya Polonsky\Downloads\CSV_3_Fault_Label_Filtered Anomaly.csv"
+    file_path = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\Fault_0"
+                 r"_CSV_minor_secondary_timeseries.csv")
     results = perform_pca_analysis(file_path)

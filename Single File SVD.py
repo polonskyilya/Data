@@ -204,5 +204,6 @@ def analyze_file(file_path):
 
 
 if __name__ == "__main__":
-    file_path = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\CSV_3_Fault_Label_Filtered Anomaly.csv"  # Update with your file path
+    file_path = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\Fault_6_CSV_minor_secondary_timeseries.csv"
+    # Update with your file path
     analyze_file(file_path)

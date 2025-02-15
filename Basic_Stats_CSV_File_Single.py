@@ -1,5 +1,7 @@
 # Set your file path here - just change this variable to analyze different files
-FILE_PATH = r'C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\CSV_3_Fault_Label_Filtered Anomaly.csv'
+FILE_PATH = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\Prediction_"
+             r"Fault_DataSet\Main_Secondary_DataSet\Filtered\Filtered_"
+             r"Fault_0_WO_Fault_L_main_secondary_Voltage_Current_Temp_Only_dataSet_SVD_filled.csv")
 
 import pandas as pd
 import numpy as np
