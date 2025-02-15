@@ -1,0 +1,3 @@
+Voltage main > 850
+Current Main > 250
+Temperature > 250
