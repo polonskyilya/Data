@@ -5,8 +5,7 @@ from pathlib import Path
 import numpy as np
 
 # Set the file path here
-FILE_PATH = (r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_"
-             r"DATA_SETS\Main_Secondary_DataSet\normalized_minmax_Filtered_Fault_1_to_3_main_secondary_Data_Set.prod.csv")
+FILE_PATH = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_main_secondary_Data_Set.prod.csv")
 def create_common_values_plot(csv_path):
     """
     Create visualization for most common values from a CSV file.
