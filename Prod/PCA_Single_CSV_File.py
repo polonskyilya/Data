@@ -156,6 +156,5 @@ def perform_pca_analysis(file_path):
 
 if __name__ == "__main__":
     # Specify your CSV file path here
-    file_path = (r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_"
-             r"DataSet\Filtered_Fault_0_main_secondary_Data_Set.prod.csv")
+    file_path = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\normalized_minmax_Filtered_Fault_1_to_3_main_secondary_Data_Set.prod.csv")
     results = perform_pca_analysis(file_path)

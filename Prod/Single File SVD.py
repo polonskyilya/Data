@@ -204,7 +204,6 @@ def analyze_file(file_path):
 
 
 if __name__ == "__main__":
-    file_path = (r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\normalized"
-                 r"_minmax_Filtered_Fault_1_to_3_main_secondary_Data_Set.prod.csv")
+    file_path = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_0_main_secondary_Data_Set.prod.csv")
     # Update with your file path
     analyze_file(file_path)

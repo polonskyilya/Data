@@ -97,9 +97,8 @@ def create_90percent_plots(csv_path1, csv_path2):
 
 
 if __name__ == "__main__":
-    csv_path1 = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_0_main_"
-                 r"secondary_Data_Set.prod.csv")
+    csv_path1 = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Filtered_Fault_0_main_secondary_Data_Set.prod.csv")
     csv_path2 = (
-        r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_main_"
+        r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Filtered_Fault_1_to_3_main_"
         r"secondary_Data_Set.prod.csv")
     create_90percent_plots(csv_path1, csv_path2)
