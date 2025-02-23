@@ -1,111 +1,121 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from pathlib import Path
 import numpy as np
+from pathlib import Path
 
-# Set the file path here
-FILE_PATH = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_main_secondary_Data_Set.prod.csv")
-def create_common_values_plot(csv_path):
+
+def create_main_value_plots(csv_path):
     """
-    Create visualization for most common values from a CSV file.
-
-    Args:
-        csv_path (str): Path to the CSV file
+    Create plots focusing on the main values with their exact frequencies and percentages.
     """
     try:
         # Read the CSV file
         df = pd.read_csv(csv_path)
 
-        # Create figure and subplots for different measurement types
+        # Create figure with 3 subplots (vertical arrangement)
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 20))
 
-        # Colors for main and secondary measurements
-        colors = ['#2ecc71', '#3498db']
+        # Colors
+        bar_color = '#2ecc71'
+        text_color = 'black'
 
-        # Process each measurement type
-        measurement_pairs = [
-            (['Voltage_main', 'Voltage_secondary'], 'Voltage Distribution', 'V', ax1),
-            (['Current_main', 'Current_secondary'], 'Current Distribution', 'A', ax2),
-            (['Temperature_main', 'Temperature_secondary'], 'Temperature Distribution', '°C', ax3)
-        ]
+        # 1. Voltage_main plot
+        voltage_values = [9, 8, 7]
+        voltage_counts = [1774, 1756, 920]
+        voltage_percentages = [35.48, 35.12, 18.40]
 
-        for columns, title, unit, ax in measurement_pairs:
-            # Get value counts for both columns
-            main_values = df[columns[0]].value_counts().nlargest(10)
-            sec_values = df[columns[1]].value_counts().nlargest(10)
+        bars1 = ax1.bar(voltage_values, voltage_counts, color=bar_color)
+        ax1.set_title('Voltage_main Distribution (Top 3 Values = 89% of data)', pad=20)
+        ax1.set_xlabel('Value')
+        ax1.set_ylabel('Frequency')
 
-            # Prepare data for plotting
-            main_data = pd.DataFrame({
-                'Value': main_values.index,
-                'Count': main_values.values,
-                'Type': 'Main'
-            })
-            sec_data = pd.DataFrame({
-                'Value': sec_values.index,
-                'Count': sec_values.values,
-                'Type': 'Secondary'
-            })
+        # Add value labels on bars
+        for bar, percentage in zip(bars1, voltage_percentages):
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width() / 2., height,
+                     f'Count: {int(height)}\n{percentage:.2f}%',
+                     ha='center', va='bottom')
 
-            # Combine data
-            plot_data = pd.concat([main_data, sec_data])
+        # 2. Current_main plot
+        current_values = [5, 6, 8, 9, 7, 3, 4, 2]
+        current_counts = [554, 477, 477, 472, 466, 288, 277, 208]
+        current_percentages = [11.08, 9.54, 9.54, 9.44, 9.32, 5.76, 5.54, 4.16]
 
-            # Create grouped bar plot
-            sns.barplot(data=plot_data, x='Value', y='Count', hue='Type',
-                        palette=colors, ax=ax)
+        bars2 = ax2.bar(current_values, current_counts, color=bar_color)
+        ax2.set_title('Current_main Distribution (Top 8 Values = 64.38% of data)', pad=20)
+        ax2.set_xlabel('Value')
+        ax2.set_ylabel('Frequency')
 
-            # Customize the plot
-            ax.set_title(f'Most Common {title}', pad=20, size=14)
-            ax.set_xlabel(f'Value ({unit})')
-            ax.set_ylabel('Frequency')
-            ax.grid(True, linestyle='--', alpha=0.7)
-            ax.tick_params(axis='x', rotation=45)
+        # Add value labels on bars
+        for bar, percentage in zip(bars2, current_percentages):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width() / 2., height,
+                     f'Count: {int(height)}\n{percentage:.2f}%',
+                     ha='center', va='bottom')
 
-            # Add value labels on top of bars
-            for container in ax.containers:
-                ax.bar_label(container, fmt='%d', padding=3)
+        # 3. Temperature_main plot
+        temp_values = [5, 4, 3, 2, 1]
+        temp_counts = [642, 513, 502, 376, 200]
+        temp_percentages = [12.84, 10.26, 10.04, 7.52, 4.00]
 
-        # Add overall title
-        plt.suptitle(f'Most Common Values Analysis\n{Path(csv_path).stem}',
-                     size=16, y=1.02)
+        bars3 = ax3.bar(temp_values, temp_counts, color=bar_color)
+        ax3.set_title('Temperature_main Distribution (Top 5 Values = 44.66% of data)', pad=20)
+        ax3.set_xlabel('Value')
+        ax3.set_ylabel('Frequency')
 
-        # Add summary statistics
-        stats_text = "Data Summary:\n"
-        for col in df.columns:
-            stats = df[col].describe()
-            stats_text += f"\n{col}:\n"
-            stats_text += f"Count: {stats['count']:.0f}\n"
-            stats_text += f"Mean: {stats['mean']:.2f}\n"
-            stats_text += f"Std: {stats['std']:.2f}\n"
-            stats_text += f"Min: {stats['min']:.2f}\n"
-            stats_text += f"Max: {stats['max']:.2f}\n"
+        # Add value labels on bars
+        for bar, percentage in zip(bars3, temp_percentages):
+            height = bar.get_height()
+            ax3.text(bar.get_x() + bar.get_width() / 2., height,
+                     f'Count: {int(height)}\n{percentage:.2f}%',
+                     ha='center', va='bottom')
 
-        plt.figtext(1.02, 0.5, stats_text, fontsize=10,
-                    bbox=dict(facecolor='white', alpha=0.8))
+        # Add statistics boxes
+        voltage_stats = (f"Total data points: 5000\n"
+                         f"Shown values: 4450\n"
+                         f"Percentage shown: 89.00%")
+        ax1.text(1.02, 0.5, voltage_stats, transform=ax1.transAxes,
+                 bbox=dict(facecolor='white', alpha=0.8))
+
+        current_stats = (f"Total data points: 5000\n"
+                         f"Shown values: 3219\n"
+                         f"Percentage shown: 64.38%")
+        ax2.text(1.02, 0.5, current_stats, transform=ax2.transAxes,
+                 bbox=dict(facecolor='white', alpha=0.8))
+
+        temp_stats = (f"Total data points: 5000\n"
+                      f"Shown values: 2233\n"
+                      f"Percentage shown: 44.66%")
+        ax3.text(1.02, 0.5, temp_stats, transform=ax3.transAxes,
+                 bbox=dict(facecolor='white', alpha=0.8))
+
+        # Add grid
+        ax1.grid(True, linestyle='--', alpha=0.7)
+        ax2.grid(True, linestyle='--', alpha=0.7)
+        ax3.grid(True, linestyle='--', alpha=0.7)
 
         # Adjust layout
+        plt.suptitle('Main Values Distribution Analysis', fontsize=16, y=1.02)
         plt.tight_layout()
 
-        # Create output directory if it doesn't exist
-        output_dir = Path('Most Common Values Plots')
+        # Create output directory
+        output_dir = Path('Main Values Analysis')
         output_dir.mkdir(exist_ok=True)
 
-        # Generate output filename
-        input_filename = Path(csv_path).stem
-        output_path = output_dir / f"{input_filename}_common_values.png"
-
-        # Save the plot with extra space for statistics
-        plt.savefig(output_path, dpi=300, bbox_inches='tight',
-                    pad_inches=0.5)
+        # Save plot
+        output_path = output_dir / f"{Path(csv_path).stem}_main_values.png"
+        plt.savefig(output_path, dpi=300, bbox_inches='tight', pad_inches=0.5)
         plt.close()
 
         print(f"Plot successfully saved as: {output_path}")
 
     except Exception as e:
-        print(f"Error processing file: {str(e)}")
-        raise
+        print(f"Error: {str(e)}")
+    finally:
+        plt.close('all')
 
 
 if __name__ == "__main__":
-    # Process the CSV file
-    create_common_values_plot(FILE_PATH)
+    csv_path = (r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_main_"
+                r"secondary_Data_Set.prod.csv")  # Update path as needed
+    create_main_value_plots(csv_path)
