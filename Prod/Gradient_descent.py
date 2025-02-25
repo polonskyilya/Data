@@ -389,12 +389,11 @@ if __name__ == "__main__":
     # Example usage with file paths similar to the provided example:
     # You can either use these default paths or provide paths as command line arguments
     DEFAULT_NORMAL_PATH = (
-        r"C:\Users\polon\PycharmProjects\Dataa\Prod\CSV_DATA_SETS\Main_Secondary_"
-             r"DataSet\Filtered_Fault_0_main_secondary_Data_Set.prod.csv")
+        r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Filtered"
+        r"_Fault_0_secondary_Data_Set.prod.csv")
 
     DEFAULT_FAULT_PATH = (
-        r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_"
-             r"DataSet\Filtered_Fault_1_to_3_main_secondary_Data_Set.prod.csv")
+        r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_secondary_Data_Set.prod.csv")
 
     # Check if command line arguments were provided
     import sys
