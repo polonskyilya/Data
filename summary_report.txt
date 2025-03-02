@@ -1,0 +1,132 @@
+=====================================
+STATISTICAL ANALYSIS SUMMARY REPORT
+=====================================
+
+DESCRIPTIVE STATISTICS
+-------------------------------------
+
+Fault 0:
+
+  Voltage_secondary:
+    mean: 548.6190
+    median: 578.0000
+    std: 285.7384
+    min: 0.0000
+    max: 999.0000
+    q1: 310.0000
+    q3: 793.0000
+    skewness: -0.2469
+    kurtosis: -1.1073
+
+  Current_secondary:
+    mean: 501.1600
+    median: 503.0000
+    std: 288.4278
+    min: 0.0000
+    max: 999.0000
+    q1: 251.0000
+    q3: 748.7500
+    skewness: -0.0117
+    kurtosis: -1.1842
+
+  Temperature_secondary:
+    mean: 486.8340
+    median: 483.0000
+    std: 283.7922
+    min: 0.0000
+    max: 999.0000
+    q1: 247.0000
+    q3: 712.0000
+    skewness: 0.0530
+    kurtosis: -1.1383
+
+Fault 1-3:
+
+  Voltage_secondary:
+    mean: 490.3783
+    median: 479.0000
+    std: 289.6763
+    min: 0.0000
+    max: 999.0000
+    q1: 244.0000
+    q3: 740.0000
+    skewness: 0.0656
+    kurtosis: -1.1864
+
+  Current_secondary:
+    mean: 495.3314
+    median: 500.0000
+    std: 283.4216
+    min: 0.0000
+    max: 999.0000
+    q1: 255.0000
+    q3: 732.0000
+    skewness: 0.0001
+    kurtosis: -1.1495
+
+  Temperature_secondary:
+    mean: 495.1704
+    median: 494.0000
+    std: 283.6744
+    min: 0.0000
+    max: 999.0000
+    q1: 257.0000
+    q3: 734.0000
+    skewness: 0.0053
+    kurtosis: -1.1403
+
+
+HYPOTHESIS TESTS (Fault 0 vs Fault 1-3)
+-------------------------------------
+
+Voltage_secondary_ttest:
+  t_statistic: 9.724362
+  p_value: 0.000000
+  Interpretation: Statistically significant difference (p < 0.05)
+
+Voltage_secondary_mannwhitney:
+  u_statistic: 11998668.500000
+  p_value: 0.000000
+  Interpretation: Statistically significant difference (p < 0.05)
+
+Voltage_secondary_ks_test:
+  ks_statistic: 0.120256
+  p_value: 0.000000
+  Interpretation: Statistically significant difference (p < 0.05)
+
+Current_secondary_ttest:
+  t_statistic: 0.977559
+  p_value: 0.328319
+  Interpretation: No statistically significant difference (p >= 0.05)
+
+Current_secondary_mannwhitney:
+  u_statistic: 10875600.000000
+  p_value: 0.333609
+  Interpretation: No statistically significant difference (p >= 0.05)
+
+Current_secondary_ks_test:
+  ks_statistic: 0.019724
+  p_value: 0.325841
+  Interpretation: No statistically significant difference (p >= 0.05)
+
+Temperature_secondary_ttest:
+  t_statistic: -1.410353
+  p_value: 0.158470
+  Interpretation: No statistically significant difference (p >= 0.05)
+
+Temperature_secondary_mannwhitney:
+  u_statistic: 10569078.000000
+  p_value: 0.160440
+  Interpretation: No statistically significant difference (p >= 0.05)
+
+Temperature_secondary_ks_test:
+  ks_statistic: 0.022844
+  p_value: 0.176853
+  Interpretation: No statistically significant difference (p >= 0.05)
+
+
+Plots saved as:
+- distributions.png
+- correlations.png
+- time_series.png
+- statistical_summary.png

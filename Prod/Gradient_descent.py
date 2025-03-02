@@ -42,18 +42,48 @@ def gradient_descent_fault_detector(normal_file_path, fault_file_path):
 
         # Extract features (all columns except label)
         features = [col for col in combined_df.columns if col != 'label']
-        X = combined_df[features].values
-        y = combined_df['label'].values
 
-        # Check if data is already normalized (values between 0 and 1)
-        min_vals = combined_df[features].min()
-        max_vals = combined_df[features].max()
+        # ADDED: Normalize the data using Min-Max scaling
+        print("Normalizing data using Min-Max scaling...")
+
+        # Store original feature values for later reference
+        original_features = {}
+        for feature in features:
+            original_features[feature] = {
+                'min': combined_df[feature].min(),
+                'max': combined_df[feature].max(),
+                'normal_mean': normal_df[feature].mean(),
+                'fault_mean': fault_df[feature].mean()
+            }
+
+        # Apply normalization
+        normalized_combined_df = combined_df.copy()
+        for feature in features:
+            min_val = combined_df[feature].min()
+            max_val = combined_df[feature].max()
+            if max_val > min_val:  # Avoid division by zero
+                normalized_combined_df[feature] = (combined_df[feature] - min_val) / (max_val - min_val)
+            else:
+                normalized_combined_df[feature] = 0  # If all values are the same
+
+        # Create normalized dataframes for evaluation
+        normalized_normal_df = normalized_combined_df[normalized_combined_df['label'] == 0]
+        normalized_fault_df = normalized_combined_df[normalized_combined_df['label'] == 1]
+
+        # Use normalized data for gradient descent
+        X = normalized_combined_df[features].values
+        y = normalized_combined_df['label'].values
+
+        # Verify normalization worked
+        min_vals = normalized_combined_df[features].min()
+        max_vals = normalized_combined_df[features].max()
         is_normalized = (min_vals >= -0.1).all() and (max_vals <= 1.1).all()
 
         if is_normalized:
-            print("Data appears to be normalized (values between 0 and 1)")
+            print("Data has been successfully normalized (values between 0 and 1)")
         else:
-            print("WARNING: Data does not appear to be normalized. Results may be less reliable.")
+            print("WARNING: Normalization failed. Please check the data.")
+            return None, None, None
 
         # Initial weights and bias (starting point for gradient descent)
         weights = np.zeros(len(features))
@@ -72,10 +102,11 @@ def gradient_descent_fault_detector(normal_file_path, fault_file_path):
         feature_importance.sort(key=lambda x: abs(x[1]), reverse=True)
 
         # Calculate point of failure thresholds
-        thresholds = calculate_normalized_thresholds(weights, bias, features, normal_df, fault_df)
+        thresholds = calculate_thresholds(weights, bias, features, normalized_normal_df, normalized_fault_df,
+                                          original_features)
 
         # Calculate prediction accuracy
-        accuracy, confusion_matrix = evaluate_model(weights, bias, features, normal_df, fault_df)
+        accuracy, confusion_matrix = evaluate_model(weights, bias, features, normalized_normal_df, normalized_fault_df)
 
         # Print results
         print("\nGradient Descent Complete")
@@ -84,11 +115,12 @@ def gradient_descent_fault_detector(normal_file_path, fault_file_path):
         for feature, weight in feature_importance:
             print(f"{feature}: {weight:.6f}")
 
-        print("\nPoint of Failure Thresholds:")
+        print("\nPoint of Failure Thresholds (in original scale):")
         for feature, threshold_info in thresholds.items():
             direction = ">" if weights[features.index(feature)] > 0 else "<"
             print(f"{feature}: {direction} {threshold_info['value']:.6f}")
-            print(f"  Normal mean: {threshold_info['normal_mean']:.6f}, Fault mean: {threshold_info['fault_mean']:.6f}")
+            print(
+                f"  Normal mean: {original_features[feature]['normal_mean']:.6f}, Fault mean: {original_features[feature]['fault_mean']:.6f}")
 
         print("\nConfusion Matrix:")
         print(f"True Positives: {confusion_matrix['tp']}")
@@ -99,7 +131,8 @@ def gradient_descent_fault_detector(normal_file_path, fault_file_path):
         # Generate visualizations
         output_dir = Path('Fault_Analysis_Results')
         output_dir.mkdir(exist_ok=True)
-        plot_results(normal_df, fault_df, weights, bias, features, cost_history, thresholds, output_dir)
+        plot_results(normalized_normal_df, normalized_fault_df, weights, bias, features, cost_history, thresholds,
+                     output_dir, original_features)
 
         return weights, bias, thresholds
 
@@ -150,10 +183,9 @@ def logistic_regression_gradient_descent(X, y, weights, bias, learning_rate, ite
     return weights, bias, cost_history
 
 
-def calculate_normalized_thresholds(weights, bias, features, normal_df, fault_df):
+def calculate_thresholds(weights, bias, features, normalized_normal_df, normalized_fault_df, original_features):
     """
-    Calculate reasonable threshold values constrained to the data range.
-    Returns thresholds with additional context about normal and fault means.
+    Calculate reasonable threshold values and convert them back to the original scale.
     """
     thresholds = {}
 
@@ -163,16 +195,16 @@ def calculate_normalized_thresholds(weights, bias, features, normal_df, fault_df
             continue
 
         # For normalized data, get feature range
-        feature_min = min(normal_df[feature].min(), fault_df[feature].min())
-        feature_max = max(normal_df[feature].max(), fault_df[feature].max())
+        feature_min = 0  # Normalized min
+        feature_max = 1  # Normalized max
 
         # Calculate average contributions from other features
         other_features_contribution = 0
         for j, other_feature in enumerate(features):
             if j != i:
                 # Use average of means from normal and fault
-                normal_mean = normal_df[other_feature].mean()
-                fault_mean = fault_df[other_feature].mean()
+                normal_mean = normalized_normal_df[other_feature].mean()
+                fault_mean = normalized_fault_df[other_feature].mean()
                 avg_val = (normal_mean + fault_mean) / 2
                 other_features_contribution += weights[j] * avg_val
 
@@ -180,21 +212,23 @@ def calculate_normalized_thresholds(weights, bias, features, normal_df, fault_df
         raw_threshold = (-bias - other_features_contribution) / weights[i]
 
         # Constrain threshold to actual data range
-        constrained_threshold = max(feature_min, min(feature_max, raw_threshold))
+        normalized_threshold = max(feature_min, min(feature_max, raw_threshold))
 
         # If raw threshold is far outside data range, use midpoint between means
         if (raw_threshold < feature_min - 0.5) or (raw_threshold > feature_max + 0.5):
-            normal_mean = normal_df[feature].mean()
-            fault_mean = fault_df[feature].mean()
-            constrained_threshold = (normal_mean + fault_mean) / 2
+            normal_mean = normalized_normal_df[feature].mean()
+            fault_mean = normalized_fault_df[feature].mean()
+            normalized_threshold = (normal_mean + fault_mean) / 2
+
+        # Convert threshold back to original scale
+        orig_min = original_features[feature]['min']
+        orig_max = original_features[feature]['max']
+        original_threshold = orig_min + normalized_threshold * (orig_max - orig_min)
 
         # Store threshold with context
-        normal_mean = normal_df[feature].mean()
-        fault_mean = fault_df[feature].mean()
         thresholds[feature] = {
-            'value': constrained_threshold,
-            'normal_mean': normal_mean,
-            'fault_mean': fault_mean,
+            'value': original_threshold,
+            'normalized_value': normalized_threshold,
             'raw_threshold': raw_threshold
         }
 
@@ -240,8 +274,8 @@ def evaluate_model(weights, bias, features, normal_df, fault_df):
     return accuracy, confusion_matrix
 
 
-def plot_results(normal_df, fault_df, weights, bias, features, cost_history, thresholds, output_dir):
-    """Generate visualizations for the analysis"""
+def plot_results(normal_df, fault_df, weights, bias, features, cost_history, thresholds, output_dir, original_features):
+    """Generate visualizations for the analysis using original scale where appropriate"""
     # Setup figure
     plt.figure(figsize=(20, 15))
 
@@ -266,16 +300,27 @@ def plot_results(normal_df, fault_df, weights, bias, features, cost_history, thr
     plt.ylabel('Cost')
     plt.grid(True, linestyle='--', alpha=0.7)
 
-    # 3. Top two features scatter plot
+    # 3. Top two features scatter plot in original scale
     if len(features) >= 2:
         plt.subplot(2, 2, 3)
         top_features = [f[0] for f in feature_weights[:2]]
         f1, f2 = top_features[0], top_features[1]
 
-        plt.scatter(normal_df[f1], normal_df[f2], alpha=0.5, label='Normal')
-        plt.scatter(fault_df[f1], fault_df[f2], alpha=0.5, label='Fault')
+        # De-normalize the data for visualization
+        normal_f1 = normal_df[f1] * (original_features[f1]['max'] - original_features[f1]['min']) + \
+                    original_features[f1]['min']
+        normal_f2 = normal_df[f2] * (original_features[f2]['max'] - original_features[f2]['min']) + \
+                    original_features[f2]['min']
 
-        # Draw threshold lines
+        fault_f1 = fault_df[f1] * (original_features[f1]['max'] - original_features[f1]['min']) + original_features[f1][
+            'min']
+        fault_f2 = fault_df[f2] * (original_features[f2]['max'] - original_features[f2]['min']) + original_features[f2][
+            'min']
+
+        plt.scatter(normal_f1, normal_f2, alpha=0.5, label='Normal')
+        plt.scatter(fault_f1, fault_f2, alpha=0.5, label='Fault')
+
+        # Draw threshold lines in original scale
         if f1 in thresholds:
             threshold_value = thresholds[f1]['value']
             direction = ">" if weights[features.index(f1)] > 0 else "<"
@@ -288,39 +333,48 @@ def plot_results(normal_df, fault_df, weights, bias, features, cost_history, thr
             plt.axhline(y=threshold_value, color='g', linestyle='--',
                         label=f'Threshold {f2} {direction} {threshold_value:.4f}')
 
-        plt.xlabel(f1)
-        plt.ylabel(f2)
+        plt.xlabel(f1 + " (original scale)")
+        plt.ylabel(f2 + " (original scale)")
         plt.title(f'Decision Boundaries: {f1} vs {f2}', size=14)
         plt.legend()
         plt.grid(True, linestyle='--', alpha=0.7)
 
-    # 4. Feature distributions for top feature
+    # 4. Feature distributions for top feature in original scale
     plt.subplot(2, 2, 4)
     top_feature = feature_weights[0][0]
 
-    # Plot histograms with KDE
-    sns.histplot(normal_df[top_feature], color='green', label='Normal',
+    # De-normalize the data for visualization
+    min_val = original_features[top_feature]['min']
+    max_val = original_features[top_feature]['max']
+    range_val = max_val - min_val
+
+    normal_orig = normal_df[top_feature] * range_val + min_val
+    fault_orig = fault_df[top_feature] * range_val + min_val
+
+    # Plot histograms with KDE using original scale
+    sns.histplot(normal_orig, color='green', label='Normal',
                  alpha=0.5, kde=True, stat="density")
-    sns.histplot(fault_df[top_feature], color='red', label='Fault',
+    sns.histplot(fault_orig, color='red', label='Fault',
                  alpha=0.5, kde=True, stat="density")
 
     if top_feature in thresholds:
+        # Use original scale threshold
         threshold_value = thresholds[top_feature]['value']
         plt.axvline(x=threshold_value, color='k', linestyle='--',
                     label=f'Threshold: {threshold_value:.4f}')
 
-        # Also mark the means
-        plt.axvline(x=thresholds[top_feature]['normal_mean'], color='green', linestyle=':',
-                    label=f'Normal Mean: {thresholds[top_feature]["normal_mean"]:.4f}')
-        plt.axvline(x=thresholds[top_feature]['fault_mean'], color='red', linestyle=':',
-                    label=f'Fault Mean: {thresholds[top_feature]["fault_mean"]:.4f}')
+        # Also mark the means in original scale
+        plt.axvline(x=original_features[top_feature]['normal_mean'], color='green', linestyle=':',
+                    label=f'Normal Mean: {original_features[top_feature]["normal_mean"]:.4f}')
+        plt.axvline(x=original_features[top_feature]['fault_mean'], color='red', linestyle=':',
+                    label=f'Fault Mean: {original_features[top_feature]["fault_mean"]:.4f}')
 
     plt.title(f'Distribution of Most Important Feature: {top_feature}', size=14)
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.7)
 
     # Overall title
-    plt.suptitle('Gradient Descent Fault Analysis', size=16, y=0.95)
+    plt.suptitle('Gradient Descent Fault Analysis (Original Scale)', size=16, y=0.95)
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     output_path = output_dir / 'gradient_descent_fault_analysis.png'
@@ -329,12 +383,12 @@ def plot_results(normal_df, fault_df, weights, bias, features, cost_history, thr
     plt.close()
 
     # Create a second visualization focusing on all features
-    plot_feature_distributions(normal_df, fault_df, thresholds, output_dir)
+    plot_feature_distributions_original(normal_df, fault_df, thresholds, output_dir, original_features)
 
 
-def plot_feature_distributions(normal_df, fault_df, thresholds, output_dir):
+def plot_feature_distributions_original(normal_df, fault_df, thresholds, output_dir, original_features):
     """
-    Create a visualization showing distributions for all features with thresholds
+    Create a visualization showing distributions for all features with thresholds in original scale
     """
     features = [col for col in normal_df.columns if col != 'label']
     n_features = len(features)
@@ -345,29 +399,49 @@ def plot_feature_distributions(normal_df, fault_df, thresholds, output_dir):
 
     plt.figure(figsize=(15, 4 * n_rows))
 
+    # Create dataframes with original scale values for visualization
+    normal_orig = pd.DataFrame()
+    fault_orig = pd.DataFrame()
+
+    for feature in features:
+        # De-normalize the data
+        min_val = original_features[feature]['min']
+        max_val = original_features[feature]['max']
+        range_val = max_val - min_val
+
+        # Convert normalized values back to original scale
+        normal_orig[feature] = normal_df[feature] * range_val + min_val
+        fault_orig[feature] = fault_df[feature] * range_val + min_val
+
     for i, feature in enumerate(features):
         plt.subplot(n_rows, n_cols, i + 1)
 
-        # Plot histograms with KDE
-        sns.histplot(normal_df[feature], color='green', label='Normal',
+        # Plot histograms with KDE using original scale data
+        sns.histplot(normal_orig[feature], color='green', label='Normal',
                      alpha=0.5, kde=True, stat="density")
-        sns.histplot(fault_df[feature], color='red', label='Fault',
+        sns.histplot(fault_orig[feature], color='red', label='Fault',
                      alpha=0.5, kde=True, stat="density")
 
         if feature in thresholds:
-            # Add threshold line
+            # Add threshold line using original scale value
             threshold_value = thresholds[feature]['value']
             plt.axvline(x=threshold_value, color='k', linestyle='--',
                         label=f'Threshold: {threshold_value:.4f}')
 
-        plt.title(f'Distribution: {feature}')
+            # Add mean lines in original scale
+            plt.axvline(x=original_features[feature]['normal_mean'], color='green', linestyle=':',
+                        label=f'Normal Mean: {original_features[feature]["normal_mean"]:.4f}')
+            plt.axvline(x=original_features[feature]['fault_mean'], color='red', linestyle=':',
+                        label=f'Fault Mean: {original_features[feature]["fault_mean"]:.4f}')
+
+        plt.title(f'Distribution: {feature} (original scale)')
         plt.legend()
         plt.grid(True, linestyle='--', alpha=0.7)
 
     plt.tight_layout()
-    output_path = output_dir / 'feature_distributions.png'
+    output_path = output_dir / 'feature_distributions_original_scale.png'
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Feature distributions saved to: {output_path}")
+    print(f"Feature distributions in original scale saved to: {output_path}")
     plt.close()
 
 
@@ -389,11 +463,10 @@ if __name__ == "__main__":
     # Example usage with file paths similar to the provided example:
     # You can either use these default paths or provide paths as command line arguments
     DEFAULT_NORMAL_PATH = (
-        r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Filtered"
-        r"_Fault_0_secondary_Data_Set.prod.csv")
+        r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Filtered_Fault_0_main_Data_Set.prod.csv")
 
     DEFAULT_FAULT_PATH = (
-        r"C:\Users\polon\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_secondary_Data_Set.prod.csv")
+        r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\Fault_1_to_3_main_Data_Set.prod.csv")
 
     # Check if command line arguments were provided
     import sys
