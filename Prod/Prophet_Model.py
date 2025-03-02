@@ -1,167 +1,122 @@
-import pandas as pd
-from prophet import Prophet
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+from prophet import Prophet
 
 
 def prepare_prophet_data(csv_file):
     try:
-        # Read CSV
         df = pd.read_csv(csv_file)
+        print(f"Columns found in {csv_file}: {df.columns.tolist()}")
 
-        # Print columns for debugging
-        print(f"Columns found in {csv_file}:")
-        print(df.columns.tolist())
+        timestamp_cols = [col for col in df.columns if col.lower() in ['timestamp', 'ts']]
+        if not timestamp_cols:
+            raise ValueError(f"No timestamp column found in {csv_file}. Available columns: {df.columns.tolist()}")
 
-        # Find timestamp column (case-insensitive)
-        timestamp_col = [col for col in df.columns if col.lower() == 'timestamp'][0]
-
-        # Convert timestamp to datetime
+        timestamp_col = timestamp_cols[0]
         df['ds'] = pd.to_datetime(df[timestamp_col])
+        df = df.dropna(subset=['ds'])
         return df
     except Exception as e:
-        print(f"Error reading file {csv_file}:")
-        print(f"Detailed error: {str(e)}")
+        print(f"Error reading file {csv_file}: {str(e)}")
         raise
+
 
 class MultiProphetModel:
     def __init__(self):
-        self.voltage_model = None
-        self.current_model = None
-        self.temp_model = None
-        self.normal_data = None
-        self.fault_data = None
+        self.models = {}
+        self.data = {}
 
     def train(self, normal_csv, fault_csv):
-        # Store historical data for plotting
-        self.normal_data = prepare_prophet_data(normal_csv)
-        self.fault_data = prepare_prophet_data(fault_csv)
+        normal_data = prepare_prophet_data(normal_csv)
+        fault_data = prepare_prophet_data(fault_csv)
+        print(f"Normal data shape: {normal_data.shape}, Fault data shape: {fault_data.shape}")
 
-        # Create and train voltage model
-        voltage_df = pd.DataFrame({
-            'ds': pd.concat([self.normal_data['ds'], self.fault_data['ds']]),
-            'y': pd.concat([self.normal_data['Voltage_main'],
-                            self.fault_data['Voltage_main']])
-        })
-        self.voltage_model = Prophet(changepoint_prior_scale=0.05)
-        self.voltage_model.fit(voltage_df)
-
-        # Create and train current model
-        current_df = pd.DataFrame({
-            'ds': pd.concat([self.normal_data['ds'], self.fault_data['ds']]),
-            'y': pd.concat([self.normal_data['Current_main'],
-                            self.fault_data['Current_main']])
-        })
-        self.current_model = Prophet(changepoint_prior_scale=0.05)
-        self.current_model.fit(current_df)
-
-        # Create and train temperature model
-        temp_df = pd.DataFrame({
-            'ds': pd.concat([self.normal_data['ds'], self.fault_data['ds']]),
-            'y': pd.concat([self.normal_data['Temperature_main'],
-                            self.fault_data['Temperature_main']])
-        })
-        self.temp_model = Prophet(changepoint_prior_scale=0.05)
-        self.temp_model.fit(temp_df)
+        for param in ['Voltage_main', 'Current_main', 'Temperature_main']:
+            try:
+                concat_ds = pd.concat([normal_data['ds'], fault_data['ds']])
+                concat_param = pd.concat([normal_data[param], fault_data[param]])
+                cap = concat_param.max() * 1.1  # Setting a slightly higher cap for logistic growth
+                df = pd.DataFrame({'ds': concat_ds, 'y': concat_param, 'cap': cap})
+                df = df.dropna()
+                model = Prophet(growth='logistic', changepoint_prior_scale=0.05)
+                model.fit(df)
+                self.models[param] = model
+                self.data[param] = df
+                print(f"Trained model for {param}")
+            except Exception as e:
+                print(f"Error training model for {param}: {str(e)}")
+                raise
 
     def predict_new_data(self, new_data_csv):
-        """Predict fault probability for new data"""
-        # Read and prepare new data
         new_data = prepare_prophet_data(new_data_csv)
-
-        # Create prediction dataframes
         pred_df = pd.DataFrame({'ds': new_data['ds']})
+        predictions = {}
+        trend_rates = {}
 
-        # Make predictions
-        voltage_forecast = self.voltage_model.predict(pred_df)
-        current_forecast = self.current_model.predict(pred_df)
-        temp_forecast = self.temp_model.predict(pred_df)
+        for param, model in self.models.items():
+            pred_df['cap'] = self.data[param]['cap'].max()
+            forecast = model.predict(pred_df)
+            predictions[param] = forecast
 
-        # Check critical conditions
-        conditions = self.check_critical_conditions(voltage_forecast, current_forecast, temp_forecast)
+            # Calculate trend rate (slope of linear regression on forecast)
+            yhat_values = forecast['yhat'].values
+            time_index = np.arange(len(yhat_values))
+            trend_slope = np.polyfit(time_index, yhat_values, 1)[0]  # Linear trend slope
+            trend_rates[param] = trend_slope
 
-        # Calculate fault probability
-        fault_prob = self.calculate_fault_probability(conditions)
+        return predictions, trend_rates
 
-        return voltage_forecast, current_forecast, temp_forecast, fault_prob
+    def plot_trends(self, new_data_csv):
+        predictions, trend_rates = self.predict_new_data(new_data_csv)
+        plt.figure(figsize=(12, 6))
 
-    def check_critical_conditions(self, voltage_forecast, current_forecast, temp_forecast):
-        """Check against normalized critical thresholds"""
-        critical_conditions = {
-            'voltage_critical': voltage_forecast['yhat'] < 0.05,
-            'current_critical': current_forecast['yhat'] < 0.04,
-            'temp_critical': temp_forecast['yhat'] > 0.07
-        }
-        return critical_conditions
+        for param, forecast in predictions.items():
+            plt.plot(forecast['ds'], forecast['yhat'], label=f'{param} Trend (Rate: {trend_rates[param]:.4f})')
 
-    def calculate_fault_probability(self, conditions):
-        """Calculate probability of fault based on critical conditions"""
-        # Count how many metrics are in critical range
-        fault_indicators = np.sum([conditions[key].astype(int) for key in conditions], axis=0)
-        # Convert to probability (0-1 range)
-        fault_prob = fault_indicators / 3.0
-        return fault_prob
+        plt.axhline(y=7, color='r', linestyle='--', label='Voltage Critical < 7')
+        plt.axhline(y=5, color='orange', linestyle='--', label='Current Critical > 5')
+        plt.axhline(y=4, color='orange', linestyle='--', label='Current Critical < 4')
+        plt.axhline(y=5.8, color='purple', linestyle='--', label='Temperature Critical > 5.8')
 
-    def plot_predictions(self, new_data_csv):
-        """Plot historical data and predictions for new data"""
-        # Get predictions for new data
-        v_forecast, c_forecast, t_forecast, fault_prob = self.predict_new_data(new_data_csv)
-
-        # Create subplots
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(15, 20))
-
-        # Plot Voltage
-        ax1.plot(self.normal_data['ds'], self.normal_data['Voltage_main'], 'g.', label='Normal', alpha=0.5)
-        ax1.plot(self.fault_data['ds'], self.fault_data['Voltage_main'], 'r.', label='Fault', alpha=0.5)
-        ax1.plot(v_forecast['ds'], v_forecast['yhat'], 'b-', label='Prediction')
-        ax1.fill_between(v_forecast['ds'], v_forecast['yhat_lower'], v_forecast['yhat_upper'], color='b', alpha=0.2)
-        ax1.axhline(y=0.05, color='r', linestyle='--', label='Critical Threshold')
-        ax1.set_title('Voltage Predictions')
-        ax1.legend()
-
-        # Plot Current
-        ax2.plot(self.normal_data['ds'], self.normal_data['Current_main'], 'g.', label='Normal', alpha=0.5)
-        ax2.plot(self.fault_data['ds'], self.fault_data['Current_main'], 'r.', label='Fault', alpha=0.5)
-        ax2.plot(c_forecast['ds'], c_forecast['yhat'], 'b-', label='Prediction')
-        ax2.fill_between(c_forecast['ds'], c_forecast['yhat_lower'], c_forecast['yhat_upper'], color='b', alpha=0.2)
-        ax2.axhline(y=0.04, color='r', linestyle='--', label='Critical Threshold')
-        ax2.set_title('Current Predictions')
-        ax2.legend()
-
-        # Plot Temperature
-        ax3.plot(self.normal_data['ds'], self.normal_data['Temperature_main'], 'g.', label='Normal', alpha=0.5)
-        ax3.plot(self.fault_data['ds'], self.fault_data['Temperature_main'], 'r.', label='Fault', alpha=0.5)
-        ax3.plot(t_forecast['ds'], t_forecast['yhat'], 'b-', label='Prediction')
-        ax3.fill_between(t_forecast['ds'], t_forecast['yhat_lower'], t_forecast['yhat_upper'], color='b', alpha=0.2)
-        ax3.axhline(y=0.07, color='r', linestyle='--', label='Critical Threshold')
-        ax3.set_title('Temperature Predictions')
-        ax3.legend()
-
-        # Plot Fault Probability
-        ax4.plot(v_forecast['ds'], fault_prob, 'k-', label='Fault Probability')
-        ax4.fill_between(v_forecast['ds'], np.zeros_like(fault_prob), fault_prob, color='r', alpha=0.2)
-        ax4.set_title('Fault Probability')
-        ax4.set_ylim(0, 1)
-        ax4.legend()
-
-        plt.tight_layout()
+        plt.title('Voltage, Current, and Temperature Trends with Rate Analysis')
+        plt.xlabel('Time')
+        plt.ylabel('Value')
+        plt.legend()
+        plt.grid()
         plt.show()
 
+        # Print trend rates for decision-making
+        print("\nTrend Rate Analysis:")
+        for param, rate in trend_rates.items():
+            direction = "increasing" if rate > 0 else "decreasing"
+            print(f"- {param}: {direction} at rate {rate:.4f} per time step")
+            if param == 'Voltage_main' and rate < 0 and min(predictions[param]['yhat']) < 7:
+                print("  ⚠ Voltage is decreasing toward critical level!")
+            if param == 'Current_main' and (rate > 0 and max(predictions[param]['yhat']) > 5) or (
+                    rate < 0 and min(predictions[param]['yhat']) < 4):
+                print("  ⚠ Current is moving toward critical level!")
+            if param == 'Temperature_main' and rate > 0 and max(predictions[param]['yhat']) > 5.8:
+                print("  ⚠ Temperature is increasing beyond safe threshold!")
 
-if __name__ == "__main__":
-    # File paths with raw strings
-    normal_csv = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\Prediction_Fault_DataSet\Main_Secondary_DataSet\Normalized\Timestamped_normalized_minmax_Fault_0_WO_Fault_L_main_secondary_Voltage_Current_Temp_Only_dataSet.csv"
-    fault_csv = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\CSV_DATA_SETS\Prediction_Fault_DataSet\Main_Secondary_DataSet\Normalized\Timestamped_normalized_minmax_Fault_1_to_3_WO_Fault_L_main_secondary_Voltage_Current_Temp_Only_dataSet.csv"
+
+def main():
+    normal_csv = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\TimeS_Filtered_Fault_0_main_Data_Set.prod.csv"
+    fault_csv = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\TimeS_Filtered_Fault_1_to_3_main_Data_Set.prod.csv"
+    new_data_csv = r"C:\Users\Ilya Polonsky\PycharmProjects\Data\Prod\CSV_DATA_SETS\Main_Secondary_DataSet\NewData_Full_Fault_TimeS_main_Data_Set.prod.csv"
 
     model = MultiProphetModel()
-
     try:
         print("Training models...")
         model.train(normal_csv, fault_csv)
 
-        new_data_csv = input("Enter path to new data CSV file: ")
-        print("\nAnalyzing new data and generating plots...")
-        model.plot_predictions(new_data_csv)
-
+        print("\nGenerating trend analysis plot...")
+        model.plot_trends(new_data_csv)
     except Exception as e:
         print(f"An error occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()
